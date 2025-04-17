@@ -7,20 +7,32 @@ const WINNING_COMBINATIONS: [[usize; 3]; 8] = [
 ];
 
 struct Board {
-    pub spaces: [char; 9],
+    pub spaces: u32,
 }
 
 impl Board {
     fn new() -> Self {
-        Board { spaces: [' '; 9] }
+        Board { spaces: 0b000000000000000000 }
+    }
+
+    fn at(&self, index: u32) -> char {
+        let x_mask = PlayerMarker::player_mask(&PlayerMarker::X) << (index * 2);
+        let o_mask = PlayerMarker::player_mask(&PlayerMarker::O) << (index * 2);
+        if self.spaces & x_mask == x_mask {
+            'X'
+        } else if self.spaces & o_mask == o_mask {
+            'O'
+        } else {
+            ' '
+        }
     }
 
     fn to_string(&self) -> String {
         format!(
             "{}|{}|{}\n-----\n{}|{}|{}\n-----\n{}|{}|{}",
-            self.spaces[0], self.spaces[1], self.spaces[2],
-            self.spaces[3], self.spaces[4], self.spaces[5],
-            self.spaces[6], self.spaces[7], self.spaces[8]
+            self.at(0), self.at(1), self.at(2),
+            self.at(3), self.at(4), self.at(5),
+            self.at(6), self.at(7), self.at(8)
         )
     }
 
@@ -31,21 +43,22 @@ impl Board {
     fn check_winner(&self, player: &PlayerMarker) -> bool {
         let player_char = PlayerMarker::player_char(player);
         WINNING_COMBINATIONS.iter().any(|&combo| {
-            combo.iter().all(|&i| self.spaces[i] == player_char)
+            combo.iter().all(|&i| self.at(i as u32) == player_char)
         })
     }
 
     fn is_draw(&self) -> bool {
-        self.spaces.iter().all(|&c| c != ' ')
+        self.spaces & 0b101010101010101010 == 0b101010101010101010
     }
 
     fn available(&self, index: usize) -> bool {
-        self.spaces[index] == ' '
+        let mask = 0b11 << (index * 2);
+        (self.spaces & mask) == 0b0
     }
 
     fn set(&mut self, index: usize, value: &PlayerMarker) {
-        let player_char = PlayerMarker::player_char(value);
-        self.spaces[index] = player_char;
+        let player_char = PlayerMarker::player_mask(value);
+        self.spaces |= player_char << (index * 2);
     }
 }
 
@@ -59,6 +72,13 @@ impl PlayerMarker {
         match player {
             PlayerMarker::X => 'X',
             PlayerMarker::O => 'O',
+        }
+    }
+
+    fn player_mask(player: &PlayerMarker) -> u32 {
+        match player {
+            PlayerMarker::X => 0b11,
+            PlayerMarker::O => 0b10,
         }
     }
 }
@@ -142,12 +162,12 @@ enum Result {
 }
 
 fn main() {
-    let x_agent = Agent::Random;
+    let x_agent = Agent::Human;
     let o_agent = Agent::Random;
     let mut x_wins = 0;
     let mut o_wins = 0;
     let mut draws = 0;
-    let games = 1000;
+    let games = 3;
     for _ in 0..games {
         match play_game(&x_agent, &o_agent) {
             Result::XWin => {
