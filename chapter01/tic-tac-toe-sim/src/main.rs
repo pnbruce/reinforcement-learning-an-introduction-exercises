@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use rand::RngCore;
 
 const WINNING_COMBINATIONS: [[usize; 3]; 8] = [
@@ -86,6 +88,7 @@ impl PlayerMarker {
 enum Agent {
     Random,
     Human,
+    RL(HashMap<u32, f32>, u32)
 }
 
 impl Agent {
@@ -121,25 +124,57 @@ impl Agent {
                     return move_index;
                 }
             }
+            Agent::RL(q_table) => {
+                let mut best_move = None;
+                let mut best_value = f32::MIN;
+                for i in 0..9 {
+                    if board.available(i) {
+                        let value = q_table.get(&(board.spaces | (PlayerMarker::player_mask(player) << (i * 2)))).unwrap_or(&0.0);
+                        if *value > best_value {
+                            best_value = *value;
+                            best_move = Some(i);
+                        }
+                    }
+                }
+                best_move.expect("No available moves")
+            }
         }
     }
 
-    fn report_win(&self, player: &PlayerMarker, board: &Board) {
+    fn report_win(& mut self, player: &PlayerMarker, board: &Board) {
         match self {
             Agent::Random => (),
             Agent::Human => {
                 board.print();
                 println!("Player {} wins!", PlayerMarker::player_char(&player));
             }
+            Agent::RL(q_table, prev_board) => {
+                let reward = 1.0;
+                q_table.insert(board.spaces, reward);
+                let prev_value = q_table.entry(*prev_board);
+                match prev_value {
+                    std::collections::hash_map::Entry::Occupied(mut entry) => {
+                        let prev_reward = *entry.get();
+                        entry.insert(prev_reward + 0.1 * (reward - prev_reward));
+                    }
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        entry.insert(0.1 * reward);
+                    }
+                }
+            }
         }
     }
 
-    fn report_draw(&self, board: &Board) {
+    fn report_draw(& mut self, board: &Board) {
         match self {
             Agent::Random => (),
             Agent::Human => {
                 board.print();
                 println!("It's a draw!");
+            }
+            Agent::RL(q_table) => {
+                let reward = 0.0;
+                q_table.insert(board.spaces, reward);
             }
         }
     }
@@ -150,6 +185,10 @@ impl Agent {
             Agent::Human => {
                 board.print();
                 println!("Player {} loses!", PlayerMarker::player_char(&player));
+            }
+            Agent::RL(q_table) => {
+                let reward = -1.0;
+                q_table.insert(board.spaces, reward);
             }
         }
     }
