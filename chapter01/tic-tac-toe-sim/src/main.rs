@@ -142,8 +142,9 @@ impl Agent {
                 let mut values: Vec<Value> = Vec::new();
                 for i in 0..9 {
                     if board.available(i) {
+                        let eval_board = board.spaces | (PlayerMarker::player_mask(player) << (i * 2));
                         let value = q_table
-                            .get(&(board.spaces | (PlayerMarker::player_mask(player) << (i * 2))))
+                            .get(&eval_board)
                             .unwrap_or(&0.0);
                         values.push(Value::Eval(*value));
                         if *value > best_value {
@@ -177,17 +178,7 @@ impl Agent {
             }
             Agent::RL(q_table, prev_board) => {
                 let reward = 1.0;
-                q_table.insert(board.spaces, reward);
-                let prev_value = q_table.entry(*prev_board);
-                match prev_value {
-                    Entry::Occupied(mut entry) => {
-                        let prev_reward = *entry.get();
-                        entry.insert(prev_reward + 0.1 * (reward - prev_reward));
-                    }
-                    Entry::Vacant(entry) => {
-                        entry.insert(DEFAULT_VALUE + 0.1 * (reward - DEFAULT_VALUE));
-                    }
-                }
+                update_q(q_table, prev_board, reward);
                 *prev_board = 0;
             }
         }
@@ -202,18 +193,9 @@ impl Agent {
             }
             Agent::RL(q_table, prev_board) => {
                 let reward = -0.5;
-                q_table.insert(board.spaces, reward);
-                let prev_value = q_table.entry(*prev_board);
-                match prev_value {
-                    Entry::Occupied(mut entry) => {
-                        let prev_reward = *entry.get();
-                        entry.insert(prev_reward + 0.1 * (reward - prev_reward));
-                    }
-                    Entry::Vacant(entry) => {
-                        entry.insert(DEFAULT_VALUE + 0.1 * (reward - DEFAULT_VALUE));
-                    }
-                }
+                update_q(q_table, prev_board, reward);
                 *prev_board = 0;
+                
             }
         }
     }
@@ -227,19 +209,8 @@ impl Agent {
             }
             Agent::RL(q_table, prev_board) => {
                 let reward = -1.0;
-                q_table.insert(board.spaces, reward);
-                let prev_value = q_table.entry(*prev_board);
-                match prev_value {
-                    Entry::Occupied(mut entry) => {
-                        let prev_reward = *entry.get();
-                        entry.insert(prev_reward + 0.1 * (reward - prev_reward));
-                    }
-                    Entry::Vacant(entry) => {
-                        entry.insert(DEFAULT_VALUE + 0.1 * (reward - DEFAULT_VALUE));
-                    }
-                }
+                update_q(q_table, prev_board, reward);
                 *prev_board = 0;
-                // println!("{q_table:?}");
             }
         }
     }
@@ -256,6 +227,7 @@ fn update_q(q_table: &mut HashMap<u32, f32>, prev_board: &mut u32, reward: f32) 
             entry.insert(DEFAULT_VALUE + 0.1 * (reward - DEFAULT_VALUE));
         }
     }
+    // println!("{q_table:?}");
 }
 
 enum Value {
@@ -283,8 +255,9 @@ enum Result {
 }
 
 fn main() {
-    let mut x_agent = Agent::Random;
-    let mut o_agent = Agent::RL(HashMap::new(), 0);
+    let mut random_agent = Agent::Random;
+    let mut o_rl = Agent::RL(HashMap::new(), 0);
+    let mut x_rl= Agent::RL(HashMap::new(), 0);
     // let mut o_agent = Agent::Random;
     let mut x_wins = 0;
     let mut o_wins = 0;
@@ -292,26 +265,26 @@ fn main() {
     let games = 100000;
 
     for _ in 0..games {
-        play_game(&mut Agent::RL(HashMap::new(), 0), &mut Agent::Human);
+        play_game(&mut x_rl, &mut o_rl);
     }
 
-    // for _ in 0..games {
-    //     match play_game(&mut x_agent, &mut o_agent) {
-    //         Result::XWin => {
-    //             x_wins += 1;
-    //         }
-    //         Result::OWin => {
-    //             o_wins += 1;
-    //         }
-    //         Result::Draw => {
-    //             draws += 1;
-    //         }
-    //     }
-    //     println!("X wins: {}\t O wins: {}\t Draws: {}", x_wins, o_wins, draws);
-    // }
+    for _ in 0..games {
+        match play_game(&mut random_agent, &mut o_rl) {
+            Result::XWin => {
+                x_wins += 1;
+            }
+            Result::OWin => {
+                o_wins += 1;
+            }
+            Result::Draw => {
+                draws += 1;
+            }
+        }
+        println!("X wins: {}\t wins: {}\t Draws: {}", x_wins, o_wins, draws);
+    }
 
     for _ in 0..games {
-        play_game(&mut Agent::Human, &mut o_agent);
+        play_game(&mut Agent::Human, &mut o_rl);
     }
 }
 
